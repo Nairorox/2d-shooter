@@ -75,6 +75,8 @@ class Character{
 		this.alive = true;
 		this.health = 100;
 		this.circularSectorColor = 'rgba(255, 255, 0, 0.5)';
+		this.drawRangeOn = true;
+		this.meele = false;
 	}
 
 	rotatingHandler(){
@@ -190,25 +192,31 @@ class Character{
 	}
 
 	drawSelf(){
+		if(this.selfColor){
+			ctx.strokeStyle = this.selfColor;
+		}
 		ctx.beginPath();
 		ctx.arc(this.relativeX,this.relativeY,this.r,0,2*Math.PI);
 		ctx.stroke();
+			ctx.strokeStyle = "black";
 	}
 
 	drawRange(){
-		ctx.beginPath();
-		ctx.moveTo(this.relativeX, this.relativeY);
-		let line1x = this.relativeX - Math.cos(this.curDeg+(30*360/Math.PI))*this.visionR;
-		let line1y = this.relativeY - Math.sin(this.curDeg+(30*360/Math.PI))*this.visionR;
-		ctx.lineTo(line1x, line1y);
-		ctx.moveTo(this.relativeX, this.relativeY);
-		let line2x = this.relativeX - Math.cos(this.curDeg-(30*360/Math.PI))*this.visionR;
-		let line2y = this.relativeY - Math.sin(this.curDeg-(30*360/Math.PI))*this.visionR;
-		ctx.lineTo(line2x, line2y);
-		ctx.arc(this.relativeX,this.relativeY,this.visionR, this.curDeg - 3.98,Math.atan2(line2y - line1y, line2x - line1x) - 3.87);
-		ctx.fillStyle = this.circularSectorColor;
-		ctx.fill();
-		ctx.fillStyle = "black"
+		if(this.drawRangeOn){	
+			ctx.beginPath();
+			ctx.moveTo(this.relativeX, this.relativeY);
+			let line1x = this.relativeX - Math.cos(this.curDeg+(30*360/Math.PI))*this.visionR;
+			let line1y = this.relativeY - Math.sin(this.curDeg+(30*360/Math.PI))*this.visionR;
+			ctx.lineTo(line1x, line1y);
+			ctx.moveTo(this.relativeX, this.relativeY);
+			let line2x = this.relativeX - Math.cos(this.curDeg-(30*360/Math.PI))*this.visionR;
+			let line2y = this.relativeY - Math.sin(this.curDeg-(30*360/Math.PI))*this.visionR;
+			ctx.lineTo(line2x, line2y);
+			ctx.arc(this.relativeX,this.relativeY,this.visionR, this.curDeg - 3.98,Math.atan2(line2y - line1y, line2x - line1x) - 3.87);
+			ctx.fillStyle = this.circularSectorColor;
+			ctx.fill();
+			ctx.fillStyle = "black"
+		}
 	}
 
 	drawGun(){
@@ -282,6 +290,7 @@ class Character{
 
 }
 
+
 class Player extends Character{
 	constructor(x, y){
 		super(x, y);
@@ -295,7 +304,12 @@ class Player extends Character{
 		});
 
 		gameDOM.addEventListener('mousedown', (e) => {
-			this.shoot();
+			if(!this.meele){
+				this.shoot();
+			}
+			else{
+				this.slice();
+			}
 		});
 
 		document.addEventListener('keydown', (e) => {
@@ -365,9 +379,36 @@ class Enemy extends Character{
 	update(){
 		super.update();
 		this.findPlayer();
-		if(game.frame%10 == 0)
-		this.shoot();
+		this.moveTowardPlayer();
 	}
+
+	moveTowardPlayer(){
+		if(player.x < this.x){
+			this.movingLeftStart();
+		}
+		else{
+			this.movingLeftStop();
+		}
+		if(player.x > this.x){
+			this.movingRightStart();
+		}
+		else{
+			this.movingRightStop();
+		}
+		if(player.y < this.y){
+			this.movingUpStart();
+		}
+		else{
+			this.movingUpStop();
+		}
+		if(player.y > this.y){
+			this.movingDownStart();
+		}
+		else{
+			this.movingDownStop();
+		}
+	}
+
 
 	findPlayer(){
 		this.requestedDeg = Math.atan2(this.y-player.y,this.x-player.x)	
@@ -408,7 +449,7 @@ class Bullet{
 
 	checkForAnyHit(){
 		game.characters.forEach(char => {
-			if((this.x - char.x)**2 + (this.y - char.y)**2 < char.r**2 * 2){	// hitbox * 2.0
+			if((this.x - char.x)**2 + (this.y - char.y)**2 < char.r**2 * 2 && this.exist){	// hitbox * 2.0
 				this.handleHit(char);
 				return true;
 			}
@@ -433,6 +474,36 @@ class Bullet{
 	}
 }
 
+class Zombie extends Enemy{
+	constructor(x,y,speed){
+		super();
+		this.selfColor = "green";
+		this.circularSectorColor = "rgba(0,95,0,0.5)";
+		this.speed = speed;
+		this.x = x;
+		this.y = y;
+		this.drawRangeOn = false;
+	}
+
+	update(){
+		super.update();
+		this.moveTowardPlayer();
+		this.findPlayer();
+	}
+	moveTowardPlayer(){
+		let desiredX = this.x - Math.cos(this.curDeg)*this.speed;
+		let desiredY = this.y - Math.sin(this.curDeg)*this.speed;
+		for(let i = 0; i < game.characters.length; i+= 1){	//non blocking
+			let zombie = game.characters[i];
+			if((zombie.x - desiredX)**2 + (zombie.y - desiredY)**2 < zombie.r**2  && zombie != this){
+				return
+			}
+		}
+			this.x = desiredX;
+			this.y = desiredY;
+	}
+}
+
 
 const game = new Game;
 let player = new Player(0, 0);
@@ -444,5 +515,13 @@ game.start();
 let testChar = new Character(20, 50)
 game.addCharacter(testChar);
 
-let enemyTest = new Enemy(213, 7)
-game.addCharacter(enemyTest);
+
+for(let i = 0; i < 400; i+= 1){	
+	setTimeout(() => {
+		game.addCharacter(new Zombie(Math.random()*1000, Math.random()*1000, Math.random()*2+1));
+		//game.addCharacter(new Zombie(0,0,1));
+	}, i*5)
+}
+
+//let enemyTest = new Enemy(213, 7)
+//game.addCharacter(enemyTest);
